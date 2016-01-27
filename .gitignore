@@ -1,0 +1,5 @@
+.idea
+.oxbot
+irc-log.log
+test_bot.py
+test-params.json

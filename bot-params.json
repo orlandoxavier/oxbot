@@ -1,0 +1,11 @@
+[
+  {
+    "server": "irc.freenode.net",
+    "port": "6667",
+    "networkWelcomeMessage": "Welcome to the freenode Internet Relay Chat Network",
+    "nick": "bot-nick",
+    "password": "bot-password",
+    "channels": ["#channel1", "#channel2"],
+    "logFile": "irc-log.log"
+  }
+]
