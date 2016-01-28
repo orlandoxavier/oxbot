@@ -3,14 +3,19 @@ from os.path import exists
 from datetime import datetime
 import socket
 import json
+from re import search
 
 
 class Bot:
-
+    """
+    Core do boot.
+    """
     STATUS_ONLINE = 'ONLINE'
     STATUS_OFFLINE = 'OFFLINE'
+    COMMANDS = ('FALA', 'HORA')
 
     _irc = None
+    _connection_hour = None
 
     def __init__(self, server='irc.freenode.net', port=6667, nick=None, password=None,
                  channels=None, networkWelcomeMessage=None, log_file=None):
@@ -42,6 +47,7 @@ class Bot:
         """Conecta ao servidor."""
         self._irc = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
         self._irc.connect((self.server, self.port))
+        self._connection_hour = datetime.now().time()
 
         print(self._irc.recv(4096))
 
@@ -69,14 +75,50 @@ class Bot:
     def listen(self):
         """Faz a escuta, exibe as mensagens e as salva no log."""
         while True:
+            # Pega uma mensagem e formata.
             data = self._irc.recv(4096)
-            log_line = '[{0}] {1}'.format(str(datetime.now()), str(data).replace('\\r','').replace('\\n', '\n'))
+            line = '[{0}] {1}'.format(str(datetime.now()), str(data).replace('\\r','').replace('\\n', '\n'))
+            print(line)
 
-            print(log_line)
+            # Conjunto de regex para pegar as estruturas que importam.
+            if '!{}'.format(self.nick) in line:
+                important = search('b\':\w.*', line)
+                from_nick = search('[^b\':]\w*', important.group())
+                channel = search(r'#\w[^PRIVMSG ]*\s', important.group())
+                request_command = search(r'!xavierbot.*', important.group())
 
+                request_command = request_command.group().replace('!{}'.format(self.nick), '').replace(' ', '').upper()
+                print(request_command)
+
+                msg = ''
+
+                # Se o comando for válido...
+                if request_command in Bot.COMMANDS:
+                    if request_command == 'FALA':
+                        msg = 'opa! Beleza?'
+
+                    elif request_command == 'HORA':
+                        msg = datetime.now().time().strftime('%H:%M:%S')
+
+                # Se o comando não for válido...
+                else:
+                    msg = 'Não entendi esse comando. ' \
+                          'Entendo esses comandos aqui, óh: ' \
+                          '{}'.format((str(Bot.COMMANDS).replace('\'', '')))
+
+                # Responde um determinado comando no canal em que foi digitado.
+                response_msg = 'PRIVMSG {0} :{1}, {2}\r\n'.format(
+                        channel.group(), from_nick.group(), msg)
+                print('RESPOSTA ENVIADA: {}'.format(response_msg))
+                self._irc.send(response_msg.encode())
+
+            # Só salva o log se o arquivo de log foi definido.
             if self.log_file:
-                self.update_log(str(log_line))
+                self.update_log(str(line))
 
+            # Entra no canal apenas se a mensagem de boas vindas foi encontrada.
+            # Isso significa que o comando para entrar no canal será executado
+            # apenas quando o bot já estiver conectado.
             if self.networkWelcomeMessage.encode() in data:
                 self.join(self.channels)
 
@@ -116,47 +158,114 @@ class Bot:
         self.update_log('#' * 30)
 
 
-def malformed_json(param, not_expected_msg=False):
-    if not_expected_msg:
-        exit('O parâmetro "{}" no JSON tem um valor inválido.'.format(param))
+class BotSettingsValidator:
+    """
+    Validador do arquivo de congiguração JSON.
+    """
+    REQUIRED_PARAMS = ('server', 'port', 'nick',
+                       'password', 'channels',
+                       'networkWelcomeMessage')
 
-    exit('O parâmetro "{}" não foi encontrado no JSON.'.format(param))
+    CHECK_TYPES = ('numeric', 'file')
+
+    def __init__(self, json_data):
+        """
+        :param json_data: Dicionário de configuração.
+        :return:
+        """
+        """
+        :param json_data:
+        :return:
+        """
+        self.json_data = json_data
+
+    def has_param(self, param):
+        """
+        Verifica se um parâmetro existe ou não no dicionário de configuração.
+        :param param: Parâmetro a ser verificado.
+        :return:
+        """
+        return param in self.json_data
+
+    def _malformed_json(self, param):
+        """
+        Mata o programa com a mensagem de erro referenciando o parâmetro em falta.
+        :param: Parâmetro em falta.
+        :return:
+        """
+        exit('O parâmetro "{}" não foi encontrado no JSON.'.format(param))
+
+    def _integrity_error(self, param):
+        """
+        Mata o programa com a mensagem de erro referenciando o parâmetro sem integridade.
+        :param: Parâmetro sem integridade.
+        :return:
+        """
+        exit('O parâmetro "{}" não possui um valor correto.'.format(param))
+
+    def validate_params(self):
+        """
+        Verifica se os parâmetros obrigatórios estão definidos no dicionário.
+        :return:
+        """
+        for param in self.REQUIRED_PARAMS:
+            if param not in self.json_data:
+                self._malformed_json(param)
+
+    def check_integrity(self, param, check_type='numeric'):
+        """
+        Checa a integridade do valor do parâmetro.
+        :param param: Parâmetro a ser checado.
+        :param check_type: Tipo da checagem.
+        :return:
+        """
+        if param in self.REQUIRED_PARAMS and check_type in self.CHECK_TYPES:
+
+                if check_type == 'numeric':
+                    if not self.json_data[param].isnumeric():
+                        self._integrity_error(param)
+
+                if check_type == 'file':
+                    if not exists(self.json_data[param]):
+                        self._integrity_error(param)
+
+    def check_type_integrity(self, param, value):
+        """
+        Checa se o tipo do parâmetro é igual ao valor esperado.
+        :param param: Parâmetro a ser checado.
+        :param value: Valor esperado.
+        :return:
+        """
+        if str(type(self.json_data[param])) == value:
+            return True
+
+        return False
 
 if __name__ == '__main__':
+    # Checa se existe o argumento do arquivo JSON.
     if len(argv) <= 1:
         print('Uso correto: python oxbot.py <params-file.json>')
         exit(0)
 
+    # Checa se o arquivo de configuração informado existe.
     json_file_path = argv[1]
     if not exists(json_file_path):
         print('O arquivo informado não existe.')
         exit(0)
 
+    # Faz a leitura das configurações do arquivo.
     json_data = None
     with open(json_file_path, 'r') as file:
         json_data = json.load(file)
 
-    if 'server' not in json_data:
-        malformed_json('server')
+    # Realiza as checagens dos parâmetros.
+    validator = BotSettingsValidator(json_data)
+    validator.validate_params()
+    validator.check_integrity('port')
+    validator.check_type_integrity('logFile', 'file')
+    validator.check_type_integrity('channels', "<class 'list'>")
 
-    if 'server' not in json_data or not json_data['port'].isnumeric():
-        malformed_json('port')
-
-    if 'nick' not in json_data:
-        malformed_json('nick')
-
-    if 'password' not in json_data:
-        malformed_json('password')
-
-    if 'channels' not in json_data:
-        malformed_json('channels')
-    else:
-        if str(type(json_data['channels'])) != "<class 'list'>":
-            malformed_json('channels', True)
-
-    if 'networkWelcomeMessage' not in json_data:
-        malformed_json('networkWelcomeMessage')
-
+    # Inicia o processo de configuração do bot.
     bot = Bot()
     bot.server = json_data['server']
     bot.port = int(json_data['port'])
@@ -168,9 +277,10 @@ if __name__ == '__main__':
     if 'logFile' in json_data:
         bot.log_file = json_data['logFile']
 
+    # Bota o treco pra funcionar.
     try:
         bot.connect()
         bot.listen()
     except KeyboardInterrupt:
         bot.log_bot_status(Bot.STATUS_OFFLINE)
-        print('\nInterrompido por você.')
+        print('\nInterrompido por você. Tchau.')
