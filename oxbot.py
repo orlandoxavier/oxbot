@@ -159,7 +159,7 @@ class Bot:
             # Isso significa que o comando para entrar no canal será executado
             # apenas quando o bot já estiver conectado.
             if self.networkWelcomeMessage.encode() in data:
-                self.join(self.channels)
+                self.post_connect_actions()
 
     def say_to_user_in_channel(self, channel, user, msg):
         response_msg = 'PRIVMSG {0} :{1}, {2}\r\n'.format(channel, user, msg)
