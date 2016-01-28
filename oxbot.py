@@ -14,16 +14,23 @@ class Bot:
     STATUS_ONLINE = 'ONLINE'
     STATUS_OFFLINE = 'OFFLINE'
     COMMANDS = ('HELP', 'PING', 'HORA')
-    CRITICAL_COMMANDS = ('BYE',)
+    CRITICAL_COMMANDS = ('BYE','RELOAD')
 
     _irc = None
     _connection_hour = None
 
     def __init__(self, json_file):
-        # Faz a leitura das configurações do arquivo.
-        json_data = None
-        with open(json_file, 'r') as file:
-            json_data = json.load(file)
+        # O path do arquivo fica numa variável de instância para o caso
+        # de precisar chamar o __init__ manualmente.
+        self.json_file = json_file
+        self.setup()
+
+    def setup(self):
+        """
+        Carrega as configurações do bot.
+        :return:
+        """
+        json_data = self.get_json_data(self.json_file)
 
         # Realiza as checagens dos parâmetros.
         validator = BotSettingsValidator(json_data)
@@ -57,11 +64,23 @@ class Bot:
         print(self._irc.recv(4096))
 
         self.log_bot_status(Bot.STATUS_ONLINE)
-
         self.set_nick()
 
+    def post_connect_actions(self):
+        """
+        Ações a se realizar após se conectar.
+        :return:
+        """
         if self.channels:
             self.join(self.channels)
+
+    def disconnect(self):
+        """
+        Desconecta.
+        :return:
+        """
+        msg = 'QUIT Tchau.\r\n'
+        self._irc.send(msg.encode())
 
     def set_nick(self):
         """Define o nick e faz a identificação no NickServ."""
@@ -87,11 +106,14 @@ class Bot:
 
             # Conjunto de regex para pegar as estruturas que importam.
             if '!{}'.format(self.nick) in line:
-                important = search('b\':\w.*', line)
-                from_nick = search('[^b\':]\w*', important.group())
-                channel = search(r'#\w[^PRIVMSG ]*\s', important.group())
-                request_command_search = search(r'!xavierbot.*', important.group())
-                request_command = request_command_search.group().replace('!{}'.format(self.nick), '').replace(' ', '').upper()
+                important_re = search('b\':\w.*', line)
+                from_nick_re = search('[^b\':]\w*', important_re.group())
+                channel_re = search(r'#\w[^PRIVMSG ]*\s', important_re.group())
+                request_command_re = search(r'!xavierbot.*', important_re.group())
+                request_command = request_command_re.group().replace('!{}'.format(self.nick), '').replace(' ', '').upper()
+
+                from_nick = from_nick_re.group()
+                channel = channel_re.group()
 
                 msg = ''
 
@@ -107,11 +129,17 @@ class Bot:
                         msg = datetime.now().time().strftime('%H:%M:%S')
 
                 elif request_command in self.CRITICAL_COMMANDS:
-                    if from_nick.group() in self.owners:
+                    if from_nick in self.owners:
                         if request_command == 'BYE':
-                            msg = 'QUIT Tchau.\r\n'
-                            self._irc.send(msg.encode())
+                            self.disconnect()
                             exit('Comando "BYE" solicitado. Então, bye.')
+
+                        if request_command == 'RELOAD':
+                            self.say_to_user_in_channel(channel, from_nick, 'Vou me reconfigurar. Guentaê!')
+                            self.setup()
+                            self.post_connect_actions()
+                            self.say_to_user_in_channel(channel, from_nick, 'Pronto! :)')
+                            continue
                     else:
                         msg = 'Você não pode solicitar esse comando. :('
 
@@ -120,10 +148,8 @@ class Bot:
                     msg = self.get_random_response()
 
                 # Responde um determinado comando no canal em que foi digitado.
-                response_msg = 'PRIVMSG {0} :{1}, {2}\r\n'.format(
-                        channel.group(), from_nick.group(), msg)
-                print('RESPOSTA ENVIADA: {}'.format(response_msg))
-                self._irc.send(response_msg.encode())
+                self.say_to_user_in_channel(channel, from_nick, msg)
+                self.say_to_user_in_pvt(from_nick, msg.replace(channel, ''))
 
             # Só salva o log se o arquivo de log foi definido.
             if self.log_file:
@@ -134,6 +160,16 @@ class Bot:
             # apenas quando o bot já estiver conectado.
             if self.networkWelcomeMessage.encode() in data:
                 self.join(self.channels)
+
+    def say_to_user_in_channel(self, channel, user, msg):
+        response_msg = 'PRIVMSG {0} :{1}, {2}\r\n'.format(channel, user, msg)
+        print('RESPOSTA ENVIADA: {}'.format(response_msg))
+        self._irc.send(response_msg.encode())
+
+    def say_to_user_in_pvt(self, user, msg):
+        response_msg = 'PRIVMSG {0} :{1}\r\n'.format(user, msg)
+        print('RESPOSTA ENVIADA: {}'.format(response_msg))
+        self._irc.send(response_msg.encode())
 
     def join(self, channels=[]):
         """
@@ -146,6 +182,15 @@ class Bot:
                 join_command = 'JOIN #{}'.format(c) if c[0] != '#' else 'JOIN {}'.format(c)
                 join_command += '\r\n'
                 self._irc.send(join_command.encode())
+
+    def get_json_data(self, json_file):
+        """
+        Retorna as configurações do JSON
+        :param json_file:
+        :return:
+        """
+        with open(json_file, 'r') as file:
+            return json.load(file)
 
     def update_log(self, data):
         """
