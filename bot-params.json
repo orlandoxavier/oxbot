@@ -5,5 +5,6 @@
   "nick": "bot-nick",
   "password": "bot-password",
   "channels": ["#channel1", "#channel2"],
-  "logFile": "irc-log.log"
+  "logFile": "irc-log.log",
+  "responsesFile": "responses.txt"
 }

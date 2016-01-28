@@ -12,31 +12,36 @@ class Bot:
     """
     STATUS_ONLINE = 'ONLINE'
     STATUS_OFFLINE = 'OFFLINE'
-    COMMANDS = ('FALA', 'HORA')
+    COMMANDS = ('HELP', 'FALA', 'HORA')
 
     _irc = None
     _connection_hour = None
 
-    def __init__(self, server='irc.freenode.net', port=6667, nick=None, password=None,
-                 channels=None, networkWelcomeMessage=None, log_file=None):
-        """
-        Construtor que recebe os argumentos necessários para fazer a
-        conexão ser bem sucedida.
-        :param server: Servidor para se conectar.
-        :param port: Porta do servidor.
-        :param nick: Nick do bot.
-        :param password: Senha do bot.
-        :param channels: Lista de canais para se conectar.
-        :param log_file: Arquivo de log.
-        :return:
-        """
-        self.server = server
-        self.port = port
-        self.nick = nick
-        self.password = password
-        self.channels = channels
-        self.networkWelcomeMessage = networkWelcomeMessage
-        self.log_file = log_file
+    def __init__(self, json_file):
+        # Faz a leitura das configurações do arquivo.
+        json_data = None
+        with open(json_file, 'r') as file:
+            json_data = json.load(file)
+
+        # Realiza as checagens dos parâmetros.
+        validator = BotSettingsValidator(json_data)
+        validator.validate_params()
+        validator.check_integrity('port')
+        validator.check_type_integrity('logFile', 'file')
+        validator.check_type_integrity('responsesFile', 'file')
+        validator.check_type_integrity('channels', "<class 'list'>")
+
+        # Inicia o processo de configuração do bot.
+        self.server = json_data['server']
+        self.port = int(json_data['port'])
+        self.nick = json_data['nick']
+        self.password = json_data['password']
+        self.channels = json_data['channels']
+        self.networkWelcomeMessage = json_data['networkWelcomeMessage']
+        self.responsesFile = json_data['responsesFile']
+
+        if 'logFile' in json_data:
+            self.log_file = json_data['logFile']
 
     def cmd(self, param):
         """Executa o comando recebido como parâmetro."""
@@ -94,6 +99,9 @@ class Bot:
 
                 # Se o comando for válido...
                 if request_command in Bot.COMMANDS:
+                    if request_command == 'HELP':
+                        msg = 'Eis os comandos que obedeço: {}'.format(str(self.COMMANDS).replace('\'', ''))
+
                     if request_command == 'FALA':
                         msg = 'opa! Beleza?'
 
@@ -102,9 +110,12 @@ class Bot:
 
                 # Se o comando não for válido...
                 else:
-                    msg = 'Não entendi esse comando. ' \
-                          'Entendo esses comandos aqui, óh: ' \
-                          '{}'.format((str(Bot.COMMANDS).replace('\'', '')))
+                    lines = []
+                    with open(self.responsesFile, 'r') as file:
+                        lines = file.readlines()
+
+                    from random import choice
+                    msg = choice(lines)
 
                 # Responde um determinado comando no canal em que foi digitado.
                 response_msg = 'PRIVMSG {0} :{1}, {2}\r\n'.format(
@@ -164,7 +175,8 @@ class BotSettingsValidator:
     """
     REQUIRED_PARAMS = ('server', 'port', 'nick',
                        'password', 'channels',
-                       'networkWelcomeMessage')
+                       'networkWelcomeMessage',
+                       'responsesFile')
 
     CHECK_TYPES = ('numeric', 'file')
 
@@ -253,32 +265,9 @@ if __name__ == '__main__':
         print('O arquivo informado não existe.')
         exit(0)
 
-    # Faz a leitura das configurações do arquivo.
-    json_data = None
-    with open(json_file_path, 'r') as file:
-        json_data = json.load(file)
-
-    # Realiza as checagens dos parâmetros.
-    validator = BotSettingsValidator(json_data)
-    validator.validate_params()
-    validator.check_integrity('port')
-    validator.check_type_integrity('logFile', 'file')
-    validator.check_type_integrity('channels', "<class 'list'>")
-
-    # Inicia o processo de configuração do bot.
-    bot = Bot()
-    bot.server = json_data['server']
-    bot.port = int(json_data['port'])
-    bot.nick = json_data['nick']
-    bot.password = json_data['password']
-    bot.channels = json_data['channels']
-    bot.networkWelcomeMessage = json_data['networkWelcomeMessage']
-
-    if 'logFile' in json_data:
-        bot.log_file = json_data['logFile']
-
     # Bota o treco pra funcionar.
     try:
+        bot = Bot(json_file_path)
         bot.connect()
         bot.listen()
     except KeyboardInterrupt:
