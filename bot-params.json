@@ -1,4 +1,5 @@
 {
+  "owners": ["deadlock"],
   "server": "irc.freenode.net",
   "port": "6667",
   "networkWelcomeMessage": "Welcome to the freenode Internet Relay Chat Network",

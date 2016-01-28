@@ -4,6 +4,7 @@ from datetime import datetime
 import socket
 import json
 from re import search
+from random import choice
 
 
 class Bot:
@@ -12,7 +13,8 @@ class Bot:
     """
     STATUS_ONLINE = 'ONLINE'
     STATUS_OFFLINE = 'OFFLINE'
-    COMMANDS = ('HELP', 'FALA', 'HORA')
+    COMMANDS = ('HELP', 'PING', 'HORA')
+    CRITICAL_COMMANDS = ('BYE',)
 
     _irc = None
     _connection_hour = None
@@ -29,9 +31,11 @@ class Bot:
         validator.check_integrity('port')
         validator.check_type_integrity('logFile', 'file')
         validator.check_type_integrity('responsesFile', 'file')
+        validator.check_type_integrity('owners', "<class 'list'>")
         validator.check_type_integrity('channels', "<class 'list'>")
 
         # Inicia o processo de configuração do bot.
+        self.owners = json_data['owners']
         self.server = json_data['server']
         self.port = int(json_data['port'])
         self.nick = json_data['nick']
@@ -39,14 +43,10 @@ class Bot:
         self.channels = json_data['channels']
         self.networkWelcomeMessage = json_data['networkWelcomeMessage']
         self.responsesFile = json_data['responsesFile']
+        self.responses = self.get_responses()
 
         if 'logFile' in json_data:
             self.log_file = json_data['logFile']
-
-    def cmd(self, param):
-        """Executa o comando recebido como parâmetro."""
-        cmd = '{}\r\n'.format()
-        self._irc.send(cmd.encode())
 
     def connect(self):
         """Conecta ao servidor."""
@@ -90,32 +90,34 @@ class Bot:
                 important = search('b\':\w.*', line)
                 from_nick = search('[^b\':]\w*', important.group())
                 channel = search(r'#\w[^PRIVMSG ]*\s', important.group())
-                request_command = search(r'!xavierbot.*', important.group())
-
-                request_command = request_command.group().replace('!{}'.format(self.nick), '').replace(' ', '').upper()
-                print(request_command)
+                request_command_search = search(r'!xavierbot.*', important.group())
+                request_command = request_command_search.group().replace('!{}'.format(self.nick), '').replace(' ', '').upper()
 
                 msg = ''
 
                 # Se o comando for válido...
-                if request_command in Bot.COMMANDS:
+                if request_command in self.COMMANDS:
                     if request_command == 'HELP':
                         msg = 'Eis os comandos que obedeço: {}'.format(str(self.COMMANDS).replace('\'', ''))
 
-                    if request_command == 'FALA':
-                        msg = 'opa! Beleza?'
+                    elif request_command == 'PING':
+                        msg = 'PONG'
 
                     elif request_command == 'HORA':
                         msg = datetime.now().time().strftime('%H:%M:%S')
 
+                elif request_command in self.CRITICAL_COMMANDS:
+                    if from_nick.group() in self.owners:
+                        if request_command == 'BYE':
+                            msg = 'QUIT Tchau.\r\n'
+                            self._irc.send(msg.encode())
+                            exit('Comando "BYE" solicitado. Então, bye.')
+                    else:
+                        msg = 'Você não pode solicitar esse comando. :('
+
                 # Se o comando não for válido...
                 else:
-                    lines = []
-                    with open(self.responsesFile, 'r') as file:
-                        lines = file.readlines()
-
-                    from random import choice
-                    msg = choice(lines)
+                    msg = self.get_random_response()
 
                 # Responde um determinado comando no canal em que foi digitado.
                 response_msg = 'PRIVMSG {0} :{1}, {2}\r\n'.format(
@@ -168,15 +170,28 @@ class Bot:
         self.update_log('[{0}]BOT STATUS{1}: {2}'.format(str(datetime.now()), '.' * 3, status))
         self.update_log('#' * 30)
 
+    def get_responses(self):
+        """
+        Carrega as respostas contidas no arquivo de repostas.
+        :return:
+        """
+        with open(self.responsesFile, 'r') as file:
+            return file.readlines()
+
+    def get_random_response(self):
+        """
+        Retorna, aleatoriamente, uma das respostas carregadas do arquivo.
+        :return:
+        """
+        return choice(self.responses)
 
 class BotSettingsValidator:
     """
     Validador do arquivo de congiguração JSON.
     """
-    REQUIRED_PARAMS = ('server', 'port', 'nick',
-                       'password', 'channels',
-                       'networkWelcomeMessage',
-                       'responsesFile')
+    REQUIRED_PARAMS = ('owners','server', 'port',
+                       'nick', 'password', 'channels',
+                       'networkWelcomeMessage', 'responsesFile')
 
     CHECK_TYPES = ('numeric', 'file')
 
