@@ -20,7 +20,9 @@ A sintáxe para executar comandos é simples:
 
 ``` (HELP|PING|TIME) ```
 >```HELP``` = Mostra os comandos disponíveis
+
 >```PING``` = Retorna PONG
+
 >```TIME``` = Diz a hora atual
 
 ###### De uso configurado:
@@ -29,7 +31,9 @@ arquivo de configuração poderão executar esses comandos.
 
 ``` (BYE|RELOAD) ```
 >```BYE``` = Desliga o bot
+
 >```RELOAD``` = Recarrega as configurações do bot (caso tenha alterado
+
 o arquivo de configuração ou de respostas com o bot ligado) 
 
 Manda seu pull request. :)
