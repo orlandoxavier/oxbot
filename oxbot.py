@@ -13,7 +13,7 @@ class Bot:
     """
     STATUS_ONLINE = 'ONLINE'
     STATUS_OFFLINE = 'OFFLINE'
-    COMMANDS = ('HELP', 'PING', 'HORA')
+    COMMANDS = ('HELP', 'PING', 'HOUR')
     CRITICAL_COMMANDS = ('BYE','RELOAD')
 
     _irc = None
@@ -125,7 +125,7 @@ class Bot:
                     elif request_command == 'PING':
                         msg = 'PONG'
 
-                    elif request_command == 'HORA':
+                    elif request_command == 'HOUR':
                         msg = datetime.now().time().strftime('%H:%M:%S')
 
                 elif request_command in self.CRITICAL_COMMANDS:
