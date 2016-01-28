@@ -1,39 +1,39 @@
 # OXBot
 
+#### Just an simple IRC bot for personal usage.
 
-#### Um simples IRC bot para uso pessoal.
-
-Para utilizar basta configurar o arquivo **bot-params.json** com
-suas configurações personalizadas e executar:
+The usage is very simple. Configure the file like **bot-params.json**
+with your own preferences and run:
 
 ```python oxbot.py <configuration-file.json>```
 
 
-#### Usando
-A sintáxe para executar comandos é simples:
+#### Running commands
+The syntax is simple:
 
-```!nick-do-bot <<COMANDO>>```
+```!bot-nick <command>```
 
 
-#### Comandos implementados
-###### De uso indiscriminado:
+#### Current implemented commands
+###### Indiscriminate usage:
 
 ``` (HELP|PING|TIME) ```
->```HELP``` = Mostra os comandos disponíveis
+>```HELP``` = Show available commands
 
->```PING``` = Retorna PONG
+>```PING``` = Return PONG
 
->```TIME``` = Diz a hora atual
+>```TIME``` = Show current time
 
 ###### De uso configurado:
-Apenas usuários previamente definidos no parâmetro **'owners'** no 
-arquivo de configuração poderão executar esses comandos.
+###### Usage for configured users:
+Only users previously set in **owners** parameter in configuration
+file can run the following commands:
 
 ``` (BYE|RELOAD) ```
->```BYE``` = Desliga o bot
+>```BYE``` = Shutdown bot
 
->```RELOAD``` = Recarrega as configurações do bot (caso tenha alterado
+>```RELOAD``` = Reload the settings of bot (if the configuration file
+was changed while bot online
 
-o arquivo de configuração ou de respostas com o bot ligado) 
 
-Manda seu pull request. :)
+Send your pull request. :)
